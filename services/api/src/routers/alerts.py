@@ -36,7 +36,9 @@ async def subscribe(request: Request, req: SubscribeRequest):
 @router.post("/trigger")
 @limiter.limit("10/hour")
 async def trigger(request: Request, req: TriggerRequest, x_admin_token: Optional[str] = Header(None)):
-    if ALERT_ADMIN_TOKEN and x_admin_token != ALERT_ADMIN_TOKEN:
+    if not ALERT_ADMIN_TOKEN:
+        raise HTTPException(status_code=503, detail="Admin token not configured on server")
+    if x_admin_token != ALERT_ADMIN_TOKEN:
         raise HTTPException(status_code=401, detail="Invalid admin token")
 
     subs = load_subscriptions()
@@ -59,7 +61,9 @@ async def trigger(request: Request, req: TriggerRequest, x_admin_token: Optional
 @router.post("/calima/check")
 @limiter.limit("20/hour")
 async def calima_check(request: Request, req: CalimaCheckRequest, x_admin_token: Optional[str] = Header(None)):
-    if ALERT_ADMIN_TOKEN and x_admin_token != ALERT_ADMIN_TOKEN:
+    if not ALERT_ADMIN_TOKEN:
+        raise HTTPException(status_code=503, detail="Admin token not configured on server")
+    if x_admin_token != ALERT_ADMIN_TOKEN:
         raise HTTPException(status_code=401, detail="Invalid admin token")
 
     max_value = None

@@ -48,7 +48,8 @@ def _send_email(emails: list[str], subject: str, body: str) -> None:
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
     msg["From"] = sender
-    msg["To"] = ", ".join(emails)
+    msg["To"] = sender
+    msg["Bcc"] = ", ".join(emails)
     msg.attach(MIMEText(body, "plain", "utf-8"))
 
     if SMTP_SECURE == "ssl":
