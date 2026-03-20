@@ -68,7 +68,7 @@ export default function App() {
     const load = async () => {
       // 1. Intentar JSON estático pre-generado
       try {
-        const big = await fetch('/data/spain.json');
+        const big = await fetch(`${process.env.PUBLIC_URL}/data/spain.json`);
         if (big.ok) {
           const bigJson = await big.json();
           if (!cancelled && Array.isArray(bigJson) && bigJson.length) {

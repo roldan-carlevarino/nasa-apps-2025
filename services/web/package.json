@@ -2,7 +2,7 @@
   "name": "datahaze-web",
   "version": "0.1.0",
   "private": true,
-  "homepage": "https://rrollpk.github.io/nasa-apps-2025",
+  "homepage": "https://roldan-carlevarino.github.io/nasa-apps-2025",
   "dependencies": {
     "chart.js": "^4.4.3",
     "leaflet": "^1.9.4",

@@ -108,7 +108,7 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
     // Programar un re-intento único tras 4s para ver si apareció municipalities.geojson
     const t = setTimeout(async () => {
       try {
-        const resp = await fetch('/data/municipalities.geojson', { cache: 'no-store' });
+        const resp = await fetch(`${process.env.PUBLIC_URL}/data/municipalities.geojson`, { cache: 'no-store' });
         if (!resp.ok) return;
         const full = await resp.json();
         if (full?.type === 'FeatureCollection' && Array.isArray(full.features) && full.features.length > count) {
@@ -210,10 +210,10 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
     const loadMunicipios = async () => {
       try {
         const tryUrls = [
-          '/data/municipalities.geojson',              // full dataset (.geojson)
-          '/data/municipalities.json',                 // variante .json (adjunto del usuario)
-          '/data/municipios-simplified.geojson',       // versión simplificada (nueva)
-          '/data/municipios.geojson'                   // legacy / anterior
+          `${process.env.PUBLIC_URL}/data/municipalities.geojson`,
+          `${process.env.PUBLIC_URL}/data/municipalities.json`,
+          `${process.env.PUBLIC_URL}/data/municipios-simplified.geojson`,
+          `${process.env.PUBLIC_URL}/data/municipios.geojson`
         ];
         let loaded = null; let firstErr = null;
         for (const u of tryUrls) {
@@ -291,7 +291,7 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
   useEffect(() => {
     let cancelled = false;
     const loadPreds = async () => {
-      const url = '/data/aq_Madrid_with_predictions.json';
+      const url = `${process.env.PUBLIC_URL}/data/aq_Madrid_with_predictions.json`;
       try {
         const r = await fetch(url, { cache: 'no-store' });
         if (!r.ok) return;
@@ -509,9 +509,9 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
     if (externalData && externalData.length) return; // ya tenemos datos externos
     let cancelled = false;
     const loadSpainData = async () => {
-      console.log('[MapView] Fetching /data/spain.json ...');
+      console.log('[MapView] Fetching spain.json ...');
       try {
-        const resp = await fetch('/data/spain.json');
+        const resp = await fetch(`${process.env.PUBLIC_URL}/data/spain.json`);
         const data = await resp.json();
         if (!cancelled) {
           if (Array.isArray(data) && data.length) {
@@ -520,7 +520,7 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
             setPm25Data(cleaned);
           } else {
             console.warn('[MapView] spain.json vacío o formato inesperado, intentando madrid.json');
-            const resp2 = await fetch('/data/madrid.json');
+            const resp2 = await fetch(`${process.env.PUBLIC_URL}/data/madrid.json`);
             const data2 = await resp2.json();
             if (Array.isArray(data2) && data2.length) {
               const { cleaned, report } = sanitizeStations(data2);
@@ -534,8 +534,8 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
       } catch (e) {
         console.error('[MapView] Error cargando spain.json:', e);
         try {
-          console.log('[MapView] Intentando fallback /data/madrid.json ...');
-          const resp2 = await fetch('/data/madrid.json');
+          console.log('[MapView] Intentando fallback madrid.json ...');
+          const resp2 = await fetch(`${process.env.PUBLIC_URL}/data/madrid.json`);
           const data2 = await resp2.json();
           if (!cancelled) {
             if (Array.isArray(data2) && data2.length) {
