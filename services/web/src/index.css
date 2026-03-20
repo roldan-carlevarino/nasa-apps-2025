@@ -1,0 +1,28 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html, body, #root {
+	height: 100%;
+}
+
+body {
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+
+.leaflet-container {
+	background: #f0f4f8; /* tono claro neutro */
+	outline: none;
+}
+
+/* Evitar blur exagerado en algunos dispositivos cuando se aplica will-change */
+.leaflet-zoom-animated {
+	will-change: transform;
+	transform: translateZ(0);
+}
+
+.leaflet-control-container .leaflet-top, 
+.leaflet-control-container .leaflet-bottom {
+	z-index: 1100;
+}

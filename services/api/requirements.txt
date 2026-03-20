@@ -1,0 +1,11 @@
+fastapi
+uvicorn
+pydantic
+email-validator
+python-dotenv
+httpx
+orjson
+polars
+sqlalchemy
+psycopg2-binary
+slowapi
