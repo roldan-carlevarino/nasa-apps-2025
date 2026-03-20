@@ -32,8 +32,8 @@ jobs:
       - name: Build
         working-directory: services/web
         env:
-          REACT_APP_API_BASE_URL: https://tu-api.railway.app
-          REACT_APP_ALERT_BASE_URL: https://tu-api.railway.app
+          REACT_APP_API_BASE_URL: https://nasa-apps-2025-production.up.railway.app
+          REACT_APP_ALERT_BASE_URL: https://nasa-apps-2025-production.up.railway.app
         run: npm run build
 
       - name: Setup Pages
