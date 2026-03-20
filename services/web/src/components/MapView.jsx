@@ -28,7 +28,6 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
   const [pm25Data, setPm25Data] = useState(null); // array de estaciones
   const [showVectors, setShowVectors] = useState(true);
   const [zoom, setZoom] = useState(6);
-  const [renderCount, setRenderCount] = useState(0);
   const [lastError, setLastError] = useState(null);
   const [isFullScreen, setIsFullScreen] = useState(fullScreen);
   const [selectedHour, setSelectedHour] = useState(0);
@@ -141,6 +140,7 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
     };
     window.addEventListener('keydown', onKey);
     return () => window.removeEventListener('keydown', onKey);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isFullScreen]);
 
   // Bloquear scroll de fondo en fullscreen
@@ -266,6 +266,7 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
     };
     loadMunicipios();
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Fit bounds cuando llegan municipios (solo primera vez)
@@ -552,6 +553,7 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
     };
     loadSpainData();
     return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [externalData]);
 
   // Derivar max horas cuando llegan datos
@@ -564,6 +566,7 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
         if (selectedHour > len - 1) setSelectedHour(0);
       }
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pm25Data]);
 
   // Reproducir animación de horas

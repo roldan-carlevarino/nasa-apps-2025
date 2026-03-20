@@ -168,7 +168,6 @@ const PM25VectorLayer = ({ data, selectedHour = 0, isPlaying = false, opacity = 
               // Fuente: apuntar hacia centroides de sumideros (delta > 0)
               const sinks = neighbors.filter(n => n.delta > EPS).slice(0, K_BASE);
               if (sinks.length) {
-                const sumDelta = sinks.reduce((s,n) => s + n.delta, 0);
                 let cx = 0, cy = 0, distW = 0;
                 sinks.forEach(n => {
                   const w = n.delta / (Math.sqrt(n.dist2) + 0.15); // ponderar por cambio y proximidad

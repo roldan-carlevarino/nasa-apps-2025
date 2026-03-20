@@ -3,7 +3,6 @@ import React, { useState, useEffect } from 'react';
 // Leyenda plegable (colapsada por defecto). Guarda preferencia en localStorage.
 const PM25Legend = ({ visible = true, storageKey = 'legendCollapsed' }) => {
   const grades = [0, 12, 35, 55, 150, 250];
-  const colors = ['#2ecc71', '#ffff00', '#ff7e00', '#ff0000', '#8f3f97', '#7e0023'];
   const emojis = ['😊', '😐', '😷', '😰', '🤧', '☠️'];
   const [collapsed, setCollapsed] = useState(true);
 
