@@ -132,11 +132,9 @@ export default function App() {
         focusMunicipio={selectedMunicipio}
         onMunicipioSelect={(name) => {
           setSelectedMunicipio(name);
-          if (!name) {
-            setFiltered(data);
-          } else {
-            setFiltered(data.filter(d => d.municipio === name));
-          }
+          // Do NOT filter stations by municipio — stations are geographic reference points
+          // without a municipio field, so filtering would empty the array and clear all colors.
+          // The focusMunicipio prop handles the visual focus independently.
         }}
         onMunicipiosList={(names) => {
           if (Array.isArray(names) && names.length) {

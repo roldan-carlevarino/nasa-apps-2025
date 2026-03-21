@@ -44,6 +44,8 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
   const containerRef = useRef(null);
   const leafletMapRef = useRef(null);
   const municipioLayersRef = useRef({}); // nombre -> layer para abrir popup programáticamente
+  const municipioNearestStationRef = useRef({}); // nombre normalizado -> nearest station object (cached)
+  const municipioPmValuesRef = useRef(null); // ref copy of municipioPmValues for stable style callback
   const [predictionsMap, setPredictionsMap] = useState(null); // nombre normalizado -> objeto predicción
   const [municipioPmValues, setMunicipioPmValues] = useState(null); // nombre normalizado -> pm25 actual
   // Removed manual reload button; auto-load & upgrade logic makes manual reload unnecessary
@@ -287,6 +289,21 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
   // Utilidad: normalizar nombre (sin tildes, minúsculas) para matching robusto
   const normalizeName = useCallback((n) => (n||'').normalize('NFD').replace(/\p{Diacritic}/gu,'').toLowerCase().trim(), []);
 
+  // Stable style callback — ref never changes so react-leaflet won't reset colors on every zoom re-render
+  const municipioStyleFn = useCallback((feature) => {
+    const nombre = feature.properties?.name || feature.properties?.shape3 || '';
+    const norm = normalizeName(nombre);
+    const pm = municipioPmValuesRef.current?.[norm];
+    const baseColor = pm == null ? '#c8d1d9' : getPM25Color(pm);
+    return {
+      color: pm == null ? '#7a8691' : '#1f2933',
+      weight: 0.8,
+      fillColor: baseColor,
+      fillOpacity: 0.22,
+      className: 'municipio-boundary'
+    };
+  }, [normalizeName]);
+
   // Cargar predicciones desde archivo externo (usuario debe colocar /data/aq_Madrid_with_predictions.json)
   useEffect(() => {
     let cancelled = false;
@@ -348,24 +365,9 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
     const norm = normalizeName(nombre);
     const pred = predictionsMap ? predictionsMap[norm] : null;
     const { current, next } = getMunicipioCurrentPm25(feature);
-    // Derivar serie de 24h para métricas (usa nearest station)
-    let stationSeries = null;
-    try {
-      if (pm25Data && pm25Data.length) {
-        const layerTmp = L.geoJSON(feature);
-        const b = layerTmp.getBounds();
-        if (b.isValid()) {
-          const centroid = b.getCenter();
-          let best = null; let bestD = Infinity;
-          for (const st of pm25Data) {
-            const c = st.coords; if (!c) continue;
-            const dLat = c.lat - centroid.lat; const dLon = c.lon - centroid.lng;
-            const d2 = dLat*dLat + dLon*dLon; if (d2 < bestD) { bestD = d2; best = st; }
-          }
-          if (best) stationSeries = best.open_meteo?.hourly?.pm2_5 || null;
-        }
-      }
-    } catch(_) {}
+    // Use cached nearest-station lookup instead of recomputing per popup
+    const nearestStation = municipioNearestStationRef.current[norm] || null;
+    let stationSeries = nearestStation?.open_meteo?.hourly?.pm2_5 || null;
     let avg24 = null, max24 = null;
     if (Array.isArray(stationSeries) && stationSeries.length) {
       const slice = stationSeries.slice(0, 24).filter(v=>v!=null);
@@ -375,18 +377,22 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
         max24 = slice.reduce((m,v)=>v>m?v:m, -Infinity);
       }
     }
-    // Heurística de riesgo de calima (sin probabilidad explícita): basada en max24 o current
+    // Use ML model prediction when available, otherwise fall back to PM2.5 heuristic
     const basis = max24 ?? current;
     let riskPct = null; let riskLabel = null; let riskColor = '#999';
-    if (basis != null) {
-      // Mapear PM2.5 a un pseudo % de riesgo de calima (solo demostrativo)
-      // <=12 -> 5%, 12-35 -> 15-30%, 35-55 -> 30-55%, 55-150 -> 55-85%, >150 -> 90%
-  if (basis <= 12) { riskPct = 5; riskLabel = 'Low'; riskColor = '#1e88e5'; }
+    const calimaPred = nearestStation?.calima_prediction || null;
+    if (calimaPred) {
+      riskPct = Math.round(calimaPred.probability * 100);
+      riskLabel = calimaPred.calima ? 'Calima' : 'Clear';
+      riskColor = calimaPred.calima ? '#e53935' : '#1e88e5';
+    } else if (basis != null) {
+      // Fallback: map PM2.5 to pseudo calima risk %
+      if (basis <= 12) { riskPct = 5; riskLabel = 'Low'; riskColor = '#1e88e5'; }
       else if (basis <= 35) { riskPct = 20 + (basis-12)/(35-12)*10; riskLabel = 'Moderate'; riskColor = '#f1c40f'; }
       else if (basis <= 55) { riskPct = 30 + (basis-35)/(55-35)*25; riskLabel = 'Elevated'; riskColor = '#ff9800'; }
       else if (basis <= 150) { riskPct = 55 + (basis-55)/(150-55)*30; riskLabel = 'High'; riskColor = '#e53935'; }
       else { riskPct = 90; riskLabel = 'Extreme'; riskColor = '#7e0023'; }
-      riskPct = Math.min(100, Math.max(0, Math.round(riskPct)));  
+      riskPct = Math.min(100, Math.max(0, Math.round(riskPct)));
     }
     // Predicciones multi-horizonte
     let predLine = '';
@@ -412,41 +418,67 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
           ${current!=null ? `<strong>${current.toFixed ? current.toFixed(1) : current}</strong> μg/m³ ${trend}` : '<em>n/d</em>'}
         </div>
         ${(avg24!=null||max24!=null)?`<div style="margin-top:2px;font-size:11px;color:#555;">${avg24!=null?`24h avg: <strong>${avg24.toFixed(1)}</strong>`:''}${avg24!=null&&max24!=null?' · ':''}${max24!=null?`24h max: <strong>${max24.toFixed(1)}</strong>`:''}</div>`:''}
-        ${riskPct!=null?`<div style="margin-top:4px;font-size:11px;"><span style="color:#444;">Haze risk:</span> <strong style="color:${riskColor}">${riskPct}%</strong> <span style="color:${riskColor}">(${riskLabel})</span></div>`:''}
+        ${riskPct!=null?`<div style="margin-top:4px;font-size:11px;"><span style="color:#444;">Calima risk:</span> <strong style="color:${riskColor}">${riskPct}%</strong> <span style="color:${riskColor}">(${riskLabel})</span>${calimaPred?'<span style="color:#888;font-size:10px;"> · ML</span>':''}</div>`:''}
         ${predLine}
         ${pred && pred.model ? `<div style="margin-top:4px;font-size:10px;color:#666;">Model: ${pred.model}</div>`:''}
       </div>`;
-  }, [predictionsMap, getMunicipioCurrentPm25, normalizeName, pm25Data]);
+  }, [predictionsMap, getMunicipioCurrentPm25, normalizeName]);
+
+  // Precalcular nearest station por municipio (una sola vez cuando cambian municipios o estaciones)
+  useEffect(() => {
+    if (!municipiosData || !pm25Data || !pm25Data.length) { municipioNearestStationRef.current = {}; return; }
+    const cache = {};
+    try {
+      for (const f of municipiosData.features) {
+        const nombre = f.properties?.name || f.properties?.shape3; if (!nombre) continue;
+        const norm = normalizeName(nombre);
+        try {
+          const layerTmp = L.geoJSON(f);
+          const b = layerTmp.getBounds();
+          if (!b.isValid()) continue;
+          const centroid = b.getCenter();
+          let best = null; let bestDist2 = Infinity;
+          for (const st of pm25Data) {
+            const c = st.coords; if (!c) continue;
+            const dLat = c.lat - centroid.lat;
+            const dLon = c.lon - centroid.lng;
+            const d2 = dLat*dLat + dLon*dLon;
+            if (d2 < bestDist2) { bestDist2 = d2; best = st; }
+          }
+          if (best) cache[norm] = best;
+        } catch(_) {}
+      }
+    } catch(e) { console.warn('[NearestStation] error', e); }
+    municipioNearestStationRef.current = cache;
+  }, [municipiosData, pm25Data, normalizeName]);
 
   // Precalcular valor PM2.5 representativo por municipio (para colorear polígonos)
   useEffect(() => {
     if (!municipiosData || !pm25Data || !pm25Data.length) { setMunicipioPmValues(null); return; }
     const mapping = {};
+    const cache = municipioNearestStationRef.current;
     try {
-      // Computar en lote (una sola pasada). Para datasets grandes podría optimizarse con centroid caching.
       for (const f of municipiosData.features) {
         const nombre = f.properties?.name || f.properties?.shape3; if (!nombre) continue;
-        const { current } = getMunicipioCurrentPm25(f);
-        if (current != null && isFinite(current)) {
-          mapping[normalizeName(nombre)] = current;
+        const norm = normalizeName(nombre);
+        const st = cache[norm];
+        if (!st) continue;
+        const series = st.open_meteo?.hourly?.pm2_5;
+        let current = null;
+        if (Array.isArray(series) && series.length) {
+          current = series[Math.min(selectedHour, series.length - 1)];
+        } else if (typeof st.pm25 === 'number') {
+          current = st.pm25;
         }
+        if (current != null && isFinite(current)) mapping[norm] = current;
       }
     } catch(e) { console.warn('[MunicipioColor] error computing municipio PM2.5', e); }
     setMunicipioPmValues(mapping);
-  }, [municipiosData, pm25Data, selectedHour, getMunicipioCurrentPm25, normalizeName]);
+    municipioPmValuesRef.current = mapping;
+  }, [municipiosData, pm25Data, selectedHour, normalizeName]);
 
-  // Refrescar contenido de todos los popups cuando cambian hora o predicciones
-  useEffect(() => {
-    if (!municipiosData || !Object.keys(municipioLayersRef.current).length) return;
-    Object.entries(municipioLayersRef.current).forEach(([key, layer]) => {
-      const f = layer.feature; // GeoJSON feature
-      if (!f) return;
-      const nombre = f.properties?.name || f.properties?.shape3 || 'Municipio';
-      const prov = f.properties?.shape2 || '';
-      const html = buildPopupHtml(nombre, prov, f);
-      try { layer.setPopupContent(html); } catch(_) {}
-    });
-  }, [selectedHour, predictionsMap, pm25Data, municipiosData, buildPopupHtml]);
+  // Popups are lazy (built on popupopen), so no bulk refresh needed here.
+  // When selectedHour or predictionsMap changes, open popups will refresh on next open.
 
   // Usar datos externos si se proporcionan (re-sanitizar en cambios)
   useEffect(() => {
@@ -491,18 +523,33 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
       const layer = municipioLayersRef.current[targetKey];
       if (layer) {
         try { layer.openPopup(); } catch(_) {}
-        return; // success
+        return;
       }
-      // A veces el mapping aún no está listo justo después del render; reintentar unas veces
-      if (attempts < 6) {
-        attempts++;
-        setTimeout(tryOpen, 120); // reintento escalonado
-      }
+      if (attempts < 6) { attempts++; setTimeout(tryOpen, 120); }
     };
-    // Primer intento tras un frame para dejar montar capas
     const id = setTimeout(tryOpen, 0);
     return () => clearTimeout(id);
   }, [focusMunicipio]);
+
+  // Apply focus/color styles imperatively so we don't need to re-mount GeoJSON (avoids 8200-polygon remount)
+  useEffect(() => {
+    const layers = municipioLayersRef.current;
+    if (!Object.keys(layers).length) return;
+    Object.entries(layers).forEach(([norm, layer]) => {
+      const feature = layer.feature;
+      if (!feature) return;
+      const isFocused = focusedMunicipio && feature === focusedMunicipio;
+      const pm = municipioPmValues ? municipioPmValues[norm] : null;
+      const baseColor = pm == null ? '#c8d1d9' : getPM25Color(pm);
+      const stroke = isFocused ? '#ff6600' : (pm == null ? '#7a8691' : '#1f2933');
+      layer.setStyle({
+        color: stroke,
+        weight: isFocused ? 2.2 : 0.8,
+        fillColor: baseColor,
+        fillOpacity: isFocused ? 0.40 : 0.22,
+      });
+    });
+  }, [municipioPmValues, focusedMunicipio]);
 
   // Cargar datos (array de estaciones)
   useEffect(() => {
@@ -686,30 +733,9 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
         
         {showMunicipios && municipiosData && (
           <GeoJSON
-            key={focusMunicipio || 'municipios-layer'}
+            key="municipios-layer"
             data={municipiosData}
-            style={(feature) => {
-              const nombre = feature?.properties?.name || feature?.properties?.shape3 || '';
-              const norm = normalizeName(nombre);
-              const pm = municipioPmValues ? municipioPmValues[norm] : null;
-              const isFocused = focusedMunicipio && feature === focusedMunicipio;
-              let baseColor;
-              if (pm == null) {
-                baseColor = '#c8d1d9'; // gris si no hay dato
-              } else {
-                baseColor = getPM25Color(pm); // reutiliza función global de partículas
-              }
-              // Ajustar outline: si focus, naranja; si no, darken base.
-              const stroke = isFocused ? '#ff6600' : (pm == null ? '#7a8691' : '#1f2933');
-              const fillOpacity = isFocused ? 0.40 : 0.22;
-              return {
-                color: stroke,
-                weight: isFocused ? 2.2 : 0.8,
-                fillColor: baseColor,
-                fillOpacity,
-                className: 'municipio-boundary'
-              };
-            }}
+            style={municipioStyleFn}
             onEachFeature={(feature, layer) => {
               const nombre = feature.properties?.name || feature.properties?.shape3 || 'Municipio';
               const prov = feature.properties?.shape2 || '';
@@ -717,8 +743,11 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
               if (nombre) {
                 municipioLayersRef.current[norm] = layer;
               }
-              const html = buildPopupHtml(nombre, prov, feature);
-              layer.bindPopup(html);
+              // Lazy popup: bind empty popup, build HTML only when opened (avoids 8200 buildPopupHtml calls on mount)
+              layer.bindPopup('');
+              layer.on('popupopen', () => {
+                layer.setPopupContent(buildPopupHtml(nombre, prov, feature));
+              });
               layer.on('mouseover', () => {
                 layer.setStyle({ weight: 1.2, fillOpacity: 0.32 });
               });

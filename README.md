@@ -1,102 +1,127 @@
 # Haze Guard
 
-Visualizador web de calidad del aire y alertas de calima para municipios de España. Combina datos en tiempo real de [Open-Meteo](https://open-meteo.com/) con un mapa interactivo y un sistema de alertas por email.
+**Real-time air quality monitoring for 8,200+ Spanish municipalities.**
 
-## Estructura
+Built by [Rodrigo Roldan Carlevarino](https://github.com/roldan-carlevarino) and Augusto Zerpas Betancourt for the [NASA International Space Apps Challenge 2025](https://www.spaceappschallenge.org) — challenge: *"Cloud Computing with Earth Observation Data for Predicting Cleaner, Safer Skies"*.
+
+**Live demo:** https://roldan-carlevarino.github.io/nasa-apps-2025  
+**API docs:** https://nasa-apps-2025-production.up.railway.app/docs
+
+---
+
+## What it does
+
+- **Interactive map** — all Spanish municipalities colored by current PM2.5 level, updated in real time from Open-Meteo
+- **Particle vector layer** — animated PM2.5 spatial and temporal gradients across 16 reference stations
+- **Historical time slider** — scrub through 7 days of hourly air quality data
+- **ML calima predictor** — RandomForestClassifier (100 estimators) that outputs atmospheric risk probability (0–100%) based on dust, wind, humidity, and temperature
+- **Email alert system** — subscribe to a municipality and receive alerts when air quality deteriorates
+
+---
+
+## Architecture
 
 ```
 services/
-  api/   → API REST (FastAPI + Python)
-  web/   → Frontend (React + Leaflet + Chart.js + Tailwind)
+  api/        FastAPI (Python) — deployed on Railway
+  web/        React + Leaflet + Tailwind — deployed on GitHub Pages
 lib/
-  dust-calima-model/              → Modelo de predicción de calima
-  Air-Quality-Prediction-Model-main/ → Modelo de predicción de AQI
+  dust-calima-model/                Reference calima prediction model
+  Air-Quality-Prediction-Model-main/ Reference AQI model
 ```
 
-## Requisitos
+Data flows from **Open-Meteo API** → **FastAPI backend** (applies calima ML model, caches for 30 min) → **React frontend** (renders map, particles, popups).
+
+---
+
+## Running locally
+
+### Requirements
 
 - Python 3.11+
 - Node.js 18+
 
----
-
-## API (`services/api`)
-
-### Instalación
+### 1. API
 
 ```bash
 cd services/api
 python -m venv .venv
-.venv\Scripts\activate       # Windows
-# source .venv/bin/activate  # Mac/Linux
+.venv\Scripts\activate        # Windows
+# source .venv/bin/activate   # Mac/Linux
 pip install -r requirements.txt
-```
-
-### Configuración
-
-```bash
-cp .env.example .env
-# Edita .env con tus credenciales SMTP y demás variables
-```
-
-### Arrancar
-
-```bash
 uvicorn src.main:app --reload
 ```
 
-La API quedará disponible en `http://localhost:8000`.  
-Documentación interactiva: `http://localhost:8000/docs`
+API available at `http://localhost:8000` — interactive docs at `http://localhost:8000/docs`.
 
-### Endpoints principales
+No environment variables are required to run locally. The database defaults to SQLite (`data/subscriptions.db`, created automatically on first run). Email alerts are disabled unless SMTP variables are configured.
 
-| Método | Ruta | Descripción |
-|--------|------|-------------|
-| `GET` | `/health` | Estado del servicio y número de suscriptores |
-| `GET` | `/air-quality/keys` | Lista de claves de municipios disponibles |
-| `POST` | `/air-quality/stations` | Datos de calidad del aire y meteorología |
-| `POST` | `/subscribe` | Suscribirse a alertas por email |
-| `POST` | `/trigger` | Enviar alerta manual (requiere token admin) |
-| `POST` | `/calima/check` | Comprobar y disparar alerta de calima |
-
----
-
-## Web (`services/web`)
-
-### Instalación
+### 2. Frontend
 
 ```bash
 cd services/web
 npm install
-```
-
-### Arrancar en desarrollo
-
-```bash
 npm start
 ```
 
-La app quedará disponible en `http://localhost:3000` y las llamadas a `/api` se redirigen automáticamente a la API en `http://localhost:8000`.
-
-### Build de producción
-
-```bash
-npm run build
-```
+App available at `http://localhost:3000`. Calls the API at `http://localhost:8000` by default — no configuration needed.
 
 ---
 
-## Variables de entorno (API)
+## API reference
 
-Ver [`services/api/.env.example`](services/api/.env.example) para la lista completa.
+| Method | Route | Description |
+|--------|-------|-------------|
+| `GET` | `/health` | Service status, subscriber count, cache state |
+| `GET` | `/air-quality/keys` | List all available municipality keys |
+| `POST` | `/air-quality/stations` | Fetch air quality + weather + calima prediction |
+| `POST` | `/alerts/subscribe` | Subscribe email to municipality alerts |
+| `POST` | `/alerts/trigger` | Send alert manually (requires admin token) |
 
-| Variable | Descripción | Por defecto |
-|----------|-------------|-------------|
-| `DATABASE_URL` | Cadena de conexión SQLAlchemy | `sqlite:///./data/subscriptions.db` |
-| `ALERT_SMTP_HOST` | Servidor SMTP para emails | — |
-| `ALERT_SMTP_USER` | Usuario SMTP | — |
-| `ALERT_SMTP_PASS` | Contraseña SMTP | — |
-| `ALERT_ADMIN_TOKEN` | Token para endpoints admin | — |
-| `ALERT_DEV` | Si se define, desactiva el envío real de emails | — |
-| `CALIMA_THRESHOLD` | Umbral PM2.5 (µg/m³) para alerta | `50` |
-| `CALIMA_COOLDOWN_SECONDS` | Tiempo mínimo entre alertas | `1800` |
+---
+
+## Environment variables (API)
+
+All optional for local development.
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `DATABASE_URL` | SQLAlchemy connection string | `sqlite:///./data/subscriptions.db` |
+| `ALERT_SMTP_HOST` | SMTP server for outgoing email | — |
+| `ALERT_SMTP_PORT` | SMTP port | `587` |
+| `ALERT_SMTP_USER` | SMTP username | — |
+| `ALERT_SMTP_PASS` | SMTP password | — |
+| `ALERT_FROM` | Sender email address | — |
+| `ALERT_ADMIN_TOKEN` | Token for admin endpoints | — |
+| `ALERT_DEV` | Set to any value to disable real email sending | — |
+| `CALIMA_THRESHOLD` | Risk probability threshold (%) for alerts | `50` |
+| `CALIMA_COOLDOWN_SECONDS` | Minimum interval between alerts per municipality | `1800` |
+
+---
+
+## ML model
+
+The calima predictor uses a `RandomForestClassifier` trained on 500 synthetic samples generated from the probabilistic rule:
+
+$$P(\text{risk}) = \sigma\bigl(0.2(\text{dust}-10) - 0.05(\text{humidity}-50) - 0.1 \cdot \text{wind}\bigr)$$
+
+Features: `dust` (μg/m³), `wind_speed_100m` (km/h), `relative_humidity_2m` (%), `temperature_2m` (°C).
+
+The model predicts atmospheric particle risk — both Saharan dust events (calima) and wildfires produce elevated readings, which is the intended behavior. Validation against real labeled events is left as future work.
+
+---
+
+## Tech stack
+
+| Layer | Technologies |
+|-------|-------------|
+| Backend | FastAPI, Python 3.13, SQLAlchemy, SQLite / PostgreSQL |
+| Frontend | React 18, Leaflet, react-leaflet, Chart.js, Tailwind CSS |
+| Data | Open-Meteo (no API key required) |
+| Deployment | Railway (API), GitHub Pages (frontend) |
+
+---
+
+## License
+
+MIT

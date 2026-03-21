@@ -21,14 +21,7 @@ const PM25VectorLayer = ({ data, selectedHour = 0, isPlaying = false, opacity = 
       
 
     let filteredStations = stations;
-      // Renderized Map (Density Filter) AJUSTAR TODAVIA
-      if (currentZoom < 7) {
-        // Countries
-    filteredStations = stations.filter((_, index) => index % 3 === 0);
-      } else if (currentZoom < 9) {
-        // Regions  
-    filteredStations = stations.filter((_, index) => index % 2 === 0);
-      }
+      // MapView already reduces stations by density — no extra index filter needed here
       
       // Filtrar solo puntos visibles en pantalla
     filteredStations = filteredStations.filter(st => {
@@ -85,7 +78,7 @@ const PM25VectorLayer = ({ data, selectedHour = 0, isPlaying = false, opacity = 
 
       // Función para obtener opacidad basada en concentración
       const getPM25Opacity = (value) => {
-        return Math.min(0.4 + (value / 50) * 0.6, 1.0); // Más concentración = más opaco
+        return Math.min(0.65 + (value / 50) * 0.35, 1.0); // Más concentración = más opaco
       };
 
       // Procesar ubicaciones filtradas para mejor rendimiento
@@ -130,20 +123,20 @@ const PM25VectorLayer = ({ data, selectedHour = 0, isPlaying = false, opacity = 
         let maxParticles, baseParticles, randomExtra;
         
         if (currentZoom < 7) {
-          maxParticles = 3;
-          baseParticles = Math.floor(avgPM25 / 10);
-          randomExtra = Math.floor(Math.random() * 2);
+          maxParticles = 20;
+          baseParticles = 12;
+          randomExtra = Math.floor(Math.random() * 8);
         } else if (currentZoom < 9) {
-          maxParticles = 5;
-          baseParticles = Math.floor(avgPM25 / 7);
-          randomExtra = Math.floor(Math.random() * 3);
+          maxParticles = 15;
+          baseParticles = 8;
+          randomExtra = Math.floor(Math.random() * 6);
         } else {
-          maxParticles = 8;
-          baseParticles = Math.floor(avgPM25 / 5);
-          randomExtra = Math.floor(Math.random() * Math.max(1, avgPM25 / 8));
+          maxParticles = 12;
+          baseParticles = Math.floor(avgPM25 / 2);
+          randomExtra = Math.floor(Math.random() * Math.max(3, avgPM25 / 4));
         }
         
-    const numParticles = Math.max(1, Math.min(baseParticles + randomExtra, maxParticles));
+    const numParticles = Math.max(5, Math.min(baseParticles + randomExtra, maxParticles));
     totalParticles += numParticles;
         
         // FLOW MODE: reemplaza cálculo de vector cuando está activo
@@ -279,38 +272,41 @@ const PM25VectorLayer = ({ data, selectedHour = 0, isPlaying = false, opacity = 
     let finalMagnitudeMod = finalMagnitude * (1 + particleVariation);
           
           // Verificar que los valores son válidos
-          if (!isFinite(finalMagnitudeMod) || !isFinite(finalAngle) || finalMagnitudeMod > 0.002 || finalMagnitudeMod < 0) {
+          if (!isFinite(finalMagnitudeMod) || !isFinite(finalAngle)) {
             finalMagnitudeMod = 0.0005;
           }
+
+          // Scatter radius: spread particles over a wide area around each station
+          // so 16 stations visually cover all of Spain rather than clustering at each point.
+          // scatterR decreases with zoom (wide at country level, tight when zoomed in)
+          const scatterR = currentZoom < 7 ? (0.4 + Math.random() * 1.0)
+                         : currentZoom < 9 ? (0.1 + Math.random() * 0.4)
+                         :                   (0.02 + Math.random() * 0.08);
+          const scatterAngle = Math.random() * Math.PI * 2;
           
-          // Calcular offsets con vector temporal
-    const latOffset = Math.sin(finalAngle) * finalMagnitudeMod;
-    const lonOffset = Math.cos(finalAngle) * finalMagnitudeMod;
-          
-          // Calcular nueva posición
-    const particleLat = coords.lat + latOffset;
-    const particleLon = coords.lon + lonOffset;
+          // Calcular offsets: scatter dominates at low zoom, vector direction at high zoom
+          const latOffset = Math.sin(finalAngle) * finalMagnitudeMod + Math.sin(scatterAngle) * scatterR;
+          const lonOffset = Math.cos(finalAngle) * finalMagnitudeMod + Math.cos(scatterAngle) * scatterR;
           
           // Verificación de seguridad geográfica
+          const particleLat = coords.lat + latOffset;
+          const particleLon = coords.lon + lonOffset;
           const isInSpain = (particleLat >= 27.0 && particleLat <= 44.0 && 
                             particleLon >= -18.5 && particleLon <= 5.0);
           
-    const distanceFromOrigin = Math.sqrt(latOffset * latOffset + lonOffset * lonOffset);
-    const isReasonableDistance = distanceFromOrigin <= 0.0025;
-          
-    const safeLat = (isInSpain && isReasonableDistance) ? particleLat : coords.lat;
-    const safeLon = (isInSpain && isReasonableDistance) ? particleLon : coords.lon;
+    const safeLat = isInSpain ? particleLat : coords.lat;
+    const safeLon = isInSpain ? particleLon : coords.lon;
           
           // Tamaños variables
           const sizeType = Math.random();
           let particleSize;
           
           if (sizeType < 0.4) {
-            particleSize = 0.3 + Math.random() * 0.7;
+            particleSize = 0.7 + Math.random() * 0.8;
           } else if (sizeType < 0.7) {
-            particleSize = 0.8 + Math.random() * 1.2 + avgPM25 / 50;
+            particleSize = 1.2 + Math.random() * 1.5 + avgPM25 / 40;
           } else {
-            particleSize = 1.2 + Math.random() * 2.0 + avgPM25 / 25;
+            particleSize = 1.8 + Math.random() * 2.2 + avgPM25 / 20;
           }
           
           // Opacidad basada en concentración PM2.5
@@ -319,9 +315,9 @@ const PM25VectorLayer = ({ data, selectedHour = 0, isPlaying = false, opacity = 
           let particleOpacity;
           
           if (opacityType < 0.3) {
-            particleOpacity = baseOpacity * 0.5; // partículas tenues
+            particleOpacity = baseOpacity * 0.75; // partículas tenues
           } else if (opacityType < 0.6) {
-            particleOpacity = baseOpacity * 0.8; // partículas medias
+            particleOpacity = baseOpacity * 0.9; // partículas medias
           } else {
             particleOpacity = baseOpacity; // partículas intensas
           }

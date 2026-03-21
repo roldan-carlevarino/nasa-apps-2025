@@ -9,3 +9,6 @@ polars
 sqlalchemy
 psycopg2-binary
 slowapi
+scikit-learn
+numpy
+pandas
