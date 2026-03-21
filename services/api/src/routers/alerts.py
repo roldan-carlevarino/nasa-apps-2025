@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException, Header, Request
 from typing import Optional
+import hmac
 from ..config import ALERT_ADMIN_TOKEN, ALERT_DEV, CALIMA_THRESHOLD
 from ..schemas.models import SubscribeRequest, TriggerRequest, CalimaCheckRequest
 from ..services.notifications import (
@@ -38,7 +39,7 @@ async def subscribe(request: Request, req: SubscribeRequest):
 async def trigger(request: Request, req: TriggerRequest, x_admin_token: Optional[str] = Header(None)):
     if not ALERT_ADMIN_TOKEN:
         raise HTTPException(status_code=503, detail="Admin token not configured on server")
-    if x_admin_token != ALERT_ADMIN_TOKEN:
+    if not hmac.compare_digest(x_admin_token or "", ALERT_ADMIN_TOKEN):
         raise HTTPException(status_code=401, detail="Invalid admin token")
 
     subs = load_subscriptions()
@@ -63,7 +64,7 @@ async def trigger(request: Request, req: TriggerRequest, x_admin_token: Optional
 async def calima_check(request: Request, req: CalimaCheckRequest, x_admin_token: Optional[str] = Header(None)):
     if not ALERT_ADMIN_TOKEN:
         raise HTTPException(status_code=503, detail="Admin token not configured on server")
-    if x_admin_token != ALERT_ADMIN_TOKEN:
+    if not hmac.compare_digest(x_admin_token or "", ALERT_ADMIN_TOKEN):
         raise HTTPException(status_code=401, detail="Invalid admin token")
 
     max_value = None

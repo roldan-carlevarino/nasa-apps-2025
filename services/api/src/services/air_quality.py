@@ -92,7 +92,9 @@ async def fetch_stations(
         else:
             out.append(result)
 
-    _set_cache(cache_key, out)
+    # Only cache if all results succeeded (no errors from transient failures)
+    if all("error" not in r for r in out):
+        _set_cache(cache_key, out)
     return out
 
 

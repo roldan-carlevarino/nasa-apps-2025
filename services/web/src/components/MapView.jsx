@@ -394,6 +394,8 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
       else { riskPct = 90; riskLabel = 'Extreme'; riskColor = '#7e0023'; }
       riskPct = Math.min(100, Math.max(0, Math.round(riskPct)));
     }
+    // HTML escape helper — prevents XSS from untrusted field values
+    const esc = (s) => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
     // Predicciones multi-horizonte
     let predLine = '';
     const cityRaw = pred?.city || pred?.municipio || pred?.name || pred?.town;
@@ -403,24 +405,24 @@ const MapView = ({ data: externalData, selectedRegion, focusMunicipio, onMunicip
       const p3h = pred.pm25_3h || pred.pred_3h || (pred.forecast?.[3]) || null;
       const p24h = pred.pm25_24h || pred.pred_24h || (pred.forecast?.[24]) || null;
       const parts = [];
-      if (p1h != null) parts.push(`<span><strong>+1h:</strong> ${p1h.toFixed ? p1h.toFixed(1) : p1h}</span>`);
-      if (p3h != null) parts.push(`<span><strong>+3h:</strong> ${p3h.toFixed ? p3h.toFixed(1) : p3h}</span>`);
-      if (p24h != null) parts.push(`<span><strong>+24h:</strong> ${p24h.toFixed ? p24h.toFixed(1) : p24h}</span>`);
+      if (p1h != null) parts.push(`<span><strong>+1h:</strong> ${esc(p1h.toFixed ? p1h.toFixed(1) : p1h)}</span>`);
+      if (p3h != null) parts.push(`<span><strong>+3h:</strong> ${esc(p3h.toFixed ? p3h.toFixed(1) : p3h)}</span>`);
+      if (p24h != null) parts.push(`<span><strong>+24h:</strong> ${esc(p24h.toFixed ? p24h.toFixed(1) : p24h)}</span>`);
       predLine = parts.length ? `<div style="margin-top:4px;font-size:11px;display:flex;flex-direction:column;gap:2px;">${parts.join('<br/>')}</div>` : '';
     }
     const trend = (current != null && next != null) ? (next > current ? '↑' : next < current ? '↓' : '→') : '';
     return `
       <div style="font-family:Inter,Arial,sans-serif;">
-        <strong style="font-size:13px;">${nombre}</strong>${prov?'<br/><span style="font-size:11px;color:#555">'+prov+'</span>':''}
-        ${showCity?'<div style="font-size:11px;color:#333;margin-top:2px;">City: <span style="font-weight:600;">'+cityRaw+'</span></div>':''}
+        <strong style="font-size:13px;">${esc(nombre)}</strong>${prov?'<br/><span style="font-size:11px;color:#555">'+esc(prov)+'</span>':''}
+        ${showCity?'<div style="font-size:11px;color:#333;margin-top:2px;">City: <span style="font-weight:600;">'+esc(cityRaw)+'</span></div>':''}
         <div style="margin-top:4px;font-size:12px;">
           <span style="color:#444;">PM2.5:</span>
           ${current!=null ? `<strong>${current.toFixed ? current.toFixed(1) : current}</strong> μg/m³ ${trend}` : '<em>n/d</em>'}
         </div>
         ${(avg24!=null||max24!=null)?`<div style="margin-top:2px;font-size:11px;color:#555;">${avg24!=null?`24h avg: <strong>${avg24.toFixed(1)}</strong>`:''}${avg24!=null&&max24!=null?' · ':''}${max24!=null?`24h max: <strong>${max24.toFixed(1)}</strong>`:''}</div>`:''}
-        ${riskPct!=null?`<div style="margin-top:4px;font-size:11px;"><span style="color:#444;">Calima risk:</span> <strong style="color:${riskColor}">${riskPct}%</strong> <span style="color:${riskColor}">(${riskLabel})</span>${calimaPred?'<span style="color:#888;font-size:10px;"> · ML</span>':''}</div>`:''}
+        ${riskPct!=null?`<div style="margin-top:4px;font-size:11px;"><span style="color:#444;">Calima risk:</span> <strong style="color:${riskColor}">${riskPct}%</strong> <span style="color:${riskColor}">(${esc(riskLabel)})</span>${calimaPred?'<span style="color:#888;font-size:10px;"> · ML</span>':''}</div>`:''}
         ${predLine}
-        ${pred && pred.model ? `<div style="margin-top:4px;font-size:10px;color:#666;">Model: ${pred.model}</div>`:''}
+        ${pred && pred.model ? `<div style="margin-top:4px;font-size:10px;color:#666;">Model: ${esc(pred.model)}</div>`:''}
       </div>`;
   }, [predictionsMap, getMunicipioCurrentPm25, normalizeName]);
 
