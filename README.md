@@ -103,7 +103,15 @@ All optional for local development.
 
 The calima predictor uses a `RandomForestClassifier` trained on 500 synthetic samples generated from the probabilistic rule:
 
-$$P(\text{risk}) = \sigma\bigl(0.2(\text{dust}-10) - 0.05(\text{humidity}-50) - 0.1 \cdot \text{wind}\bigr)$$
+\]
+\begin{equation*}
+
+\Pr (\text{risk}) = 
+\sigma \bigl(0.2(\text{dust}-10)-
+0.05(\text{humidity}-50)- 0.1 \cdot
+\text{wind}\bigr)
+\end{equation}
+\]
 
 Features: `dust` (μg/m³), `wind_speed_100m` (km/h), `relative_humidity_2m` (%), `temperature_2m` (°C).
 
