@@ -2,7 +2,7 @@
 
 **Real-time air quality monitoring for 8,200+ Spanish municipalities.**
 
-Built by [Rodrigo Roldan Carlevarino](https://github.com/roldan-carlevarino) and Augusto Zerpas Betancourt for the [NASA International Space Apps Challenge 2025](https://www.spaceappschallenge.org) — challenge: *"Cloud Computing with Earth Observation Data for Predicting Cleaner, Safer Skies"*.
+Built by [Rodrigo Roldan Carlevarino](https://github.com/roldan-carlevarino) and [Augusto Zerpa](https://github.com/v3natio) for the [NASA International Space Apps Challenge 2025](https://www.spaceappschallenge.org) — challenge: *"Cloud Computing with Earth Observation Data for Predicting Cleaner, Safer Skies"*.
 
 **Live demo:** https://roldan-carlevarino.github.io/nasa-apps-2025  
 **API docs:** https://nasa-apps-2025-production.up.railway.app/docs
