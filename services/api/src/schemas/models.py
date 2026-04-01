@@ -22,7 +22,7 @@ class CalimaCheckRequest(BaseModel):
 
 class StationRequest(BaseModel):
     """Request air quality for specific municipalities."""
-    keys: list[str] = Field(..., description="List of 'comunidad|provincia|poblacion' keys", min_length=1, max_length=50)
+    keys: list[str] = Field(..., description="List of 'comunidad|provincia|poblacion' keys", min_length=1, max_length=60)
     aq_past_days: int = Field(default=7, ge=1, le=14)
     aq_forecast_days: int = Field(default=0, ge=0, le=3)
     wx_past_days: int = Field(default=7, ge=1, le=14)
